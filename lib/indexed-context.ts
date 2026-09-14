@@ -24,13 +24,18 @@ export interface IndexedContextPack {
 
 const CONTEXT_CHAR_CAP = 24000; // ~6k tokens
 
-const QUERY_PACK = (repo: string) => [
-  `repo:^github\\.com/${repo}$ file:^(package\\.json|go\\.mod|Cargo\\.toml|pyproject\\.toml|Gemfile)$`,
-  `repo:^github\\.com/${repo}$ file:^(README|readme)`,
-  `repo:^github\\.com/${repo}$ file:^(src/|cmd/|app/|lib/) file:(main\\.|index\\.|app\\.|mod\\.)`,
-  `repo:^github\\.com/${repo}$ type:symbol patternType:keyword export`,
-  `repo:^github\\.com/${repo}$ file:(test/|_test\\.|spec\\.|__tests__/)`,
-  `repo:^github\\.com/${repo}$ type:diff count:10`,
+type PackQuery = { q: string; t?: "literal" | "regexp" | "keyword" };
+const QUERY_PACK = (repo: string): PackQuery[] => [
+  { q: `repo:^github\\.com/${repo}$ file:^(package\\.json|go\\.mod|Cargo\\.toml|pyproject\\.toml|Gemfile)$` },
+  { q: `repo:^github\\.com/${repo}$ file:^(README|readme)` },
+  // entrypoints/public surface: real pattern so content hits carry line citations
+  { q: `repo:^github\\.com/${repo}$ file:^(app/|src/|lib/|cmd/) file:(route\\.|main\\.|index\\.|page\\.|mod\\.) export` },
+  // exported symbols (function/class/const names)
+  { q: `repo:^github\\.com/${repo}$ type:symbol ^(get|build|create|handle|parse|format|resolve|fetch)`, t: "regexp" },
+  // tests to infer intended behavior
+  { q: `repo:^github\\.com/${repo}$ file:(test/|_test\\.|spec\\.|__tests__/) (describe|it|test|def|fn)`, t: "regexp" },
+  // recent history: why the core is shaped this way
+  { q: `repo:^github\\.com/${repo}$ type:diff` },
 ];
 
 /** Heuristic from the spec: auto-upgrade Quick -> Indexed when the cheap pass is thin. */
@@ -54,10 +59,10 @@ export async function buildIndexedContext(
   const sections: string[] = [];
   let used = 0;
 
-  for (const q of QUERY_PACK(full)) {
+  for (const { q, t } of QUERY_PACK(full)) {
     queriesRun.push(q);
     try {
-      const hits = await searchSnippets(cfg, q, 12);
+      const hits = await searchSnippets(cfg, q, 12, t);
       for (const h of hits) {
         if (used >= CONTEXT_CHAR_CAP) break;
         citations.push(h);

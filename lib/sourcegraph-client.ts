@@ -41,11 +41,12 @@ export async function searchSnippets(
   cfg: SourcegraphConfig,
   query: string,
   maxMatches = 12,
+  patternType: "literal" | "regexp" | "keyword" = "literal",
 ): Promise<CitedSnippet[]> {
   const url = `${cfg.baseUrl}/.api/search/stream?${new URLSearchParams({
     q: query,
     v: "V3",
-    t: "literal",
+    t: patternType,
     display: "20",
   })}`;
   const res = await fetch(url, { headers: headers(cfg.token) });
@@ -81,6 +82,12 @@ export async function searchSnippets(
           });
           if (snippets.length >= maxMatches) return snippets;
         }
+      } else if (ev?.type === "commit") {
+        const repo = String(ev.repository ?? "").replace(/^github\.com\//, "");
+        const oid = String(ev.oid ?? "").slice(0, 8);
+        const msg = String(ev.message ?? "").split("\n")[0].slice(0, 200);
+        snippets.push({ repo, path: `commit/${oid}`, line: 0, content: msg });
+        if (snippets.length >= maxMatches) return snippets;
       } else if (ev?.type === "path") {
         snippets.push({
           repo: String(ev.repository ?? "").replace(/^github\.com\//, ""),
