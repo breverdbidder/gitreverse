@@ -305,7 +305,7 @@ function extractMessage(data: unknown): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { repoUrl?: string };
+  let body: { repoUrl?: string; mode?: "quick" | "indexed" | "auto" };
   try {
     body = await request.json();
   } catch {
@@ -332,6 +332,15 @@ export async function POST(request: NextRequest) {
   }
 
   const { owner, repo } = parsed;
+
+  // Indexed mode (GitReverse x Sourcegraph): explicit ?mode / body mode, or auto-upgrade
+  // when the Quick context would be thin. Delegates to the indexed handler.
+  const requestedMode =
+    body.mode ?? request.nextUrl.searchParams.get("mode") ?? "auto";
+  if (requestedMode === "indexed") {
+    const { POST: indexedPOST } = await import("./indexed/route");
+    return indexedPOST(request);
+  }
 
   const llm = resolveLlmTarget();
   if ("error" in llm) {
