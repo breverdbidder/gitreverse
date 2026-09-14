@@ -79,3 +79,16 @@ pnpm lint
 ```
 
 [Sponsor this readme](https://buy.stripe.com/dRmdRaaGu3es6Dz5sgg7e03)
+
+---
+
+## Everest fork: Indexed mode (GitReverse x Sourcegraph)
+
+This fork adds **Indexed mode** behind a flag, per the combined-product spec: GitReverse is the writer, Sourcegraph is the eyes. Quick mode (GitHub metadata + README + root tree) is unchanged. Indexed mode assembles a **cited context pack** from Sourcegraph search/file reads/symbols/diffs and synthesizes a structured rebuild prompt: Intent / Stack / Shape / Contracts / Rebuild steps / Citations (`repo/path:line`).
+
+- `POST /api/reverse-prompt` with `{"repoUrl": "owner/repo", "mode": "indexed"}` (or `?mode=indexed`) -> cited rebuild prompt. `mode` omitted/`auto` = Quick (auto-upgrade hook reserved).
+- Indexed internals: `lib/sourcegraph-client.ts` (streaming search REST, no GraphQL), `lib/indexed-context.ts` (fixed query pack: manifests, entrypoints, README, symbols, tests, diffs; token-capped; cited), `lib/system-prompt-indexed.ts`.
+- Env: `SOURCEGRAPH_URL` (default `https://sourcegraph.com`, free tier), `SOURCEGRAPH_TOKEN` (free account token; anonymous attempted otherwise), and one OpenAI-compatible LLM key: `GITREVERSE_LLM_BASE_URL` / `GITREVERSE_LLM_API_KEY` / `GITREVERSE_LLM_MODEL`.
+- CLI harness: `npx tsx scripts/quick-pass.mts owner/repo` runs the Quick pipeline (works without an LLM key: prints assembled context, `llm_called:false`).
+- Deep mode (Sourcegraph Deep Search across orgs): intentionally later.
+- Zero paid dependencies. No forks of Sourcegraph; upstream API only.
